@@ -47,7 +47,7 @@ class Worker(object):
         # These are the job ids that I should get to first, before
         # picking off other jobs
         self.jids       = []
-    
+
     def run(self):
         # If this worker is meant to be resumable, then we should find out
         # what jobs this worker was working on beforehand.
@@ -133,7 +133,16 @@ class Worker(object):
     def setproctitle(self, message):
         base = 'qless-py-worker [%s] ' % ','.join(q.name for q in self.queues)
         setproctitle(base + message)
-    
+
+    ###############################################################
+    ## Methods to override when polling queues for tasks        ##
+    ##############################################################
+    def after_poll(self):
+        """Callback to perform any post polling tasks"""
+        return True
+
+    ###############################################################
+
     def work(self):
         # We should probably open up our own redis client
         self.client = qless.client(self.host, self.port)
@@ -157,7 +166,7 @@ class Worker(object):
                     logger.warn('Lost heart on would-be resumed job %s' % job.jid)
             except KeyboardInterrupt:
                 return
-        
+
         while True:
             try:
                 seen = False
@@ -168,7 +177,10 @@ class Worker(object):
                         self.setproctitle('Working %s (%s)' % (job.jid, job.klass_name))
                         job.process()
                         self.clean()
-                
+
+                #Callback
+                self.after_poll()
+
                 if not seen:
                     self.setproctitle('sleeping...')
                     logger.debug('Sleeping for %fs' % self.interval)
