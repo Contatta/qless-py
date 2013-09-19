@@ -8,6 +8,7 @@ import shutil
 import psutil
 import signal
 import logging
+import errno
 from qless import logger
 
 # This meta-information about the worker you're running on
@@ -47,6 +48,7 @@ class Worker(object):
         # These are the job ids that I should get to first, before
         # picking off other jobs
         self.jids       = []
+        self._continue_working = True
 
     def run(self):
         # If this worker is meant to be resumable, then we should find out
@@ -81,7 +83,10 @@ class Worker(object):
                 end   = ((i+1) * len(jids_to_resume)) / self.count
                 self.jids      = jids_to_resume[start:end]
                 return self.work()
-        
+
+        if self.master:
+            signal.signal(signal.SIGQUIT, self.master_quit)
+
         while self.master:
             try:
                 pid, status = os.wait()
@@ -109,7 +114,13 @@ class Worker(object):
                     # simply distributing work to /new/ workers, rather than
                     # a respawned worker.
                     return self.work()
+            #SIGINT
             except KeyboardInterrupt:
+                break
+            #SIGQUIT
+            except OSError, e:
+                if e.errno != errno.EINTR:
+                    raise
                 break
         
         if self.master:
@@ -147,7 +158,9 @@ class Worker(object):
         # We should probably open up our own redis client
         self.client = qless.client(self.host, self.port)
         self.queues = [self.client.queues[q] for q in self.queues]
-        
+
+        signal.signal(signal.SIGQUIT, self.worker_quit)
+
         if not os.path.isdir(self.sandbox):
             os.makedirs(self.sandbox)
         self.clean()
@@ -167,7 +180,7 @@ class Worker(object):
             except KeyboardInterrupt:
                 return
 
-        while True:
+        while self._continue_working:
             try:
                 seen = False
                 for queue in self.queues:
@@ -185,6 +198,10 @@ class Worker(object):
                     self.setproctitle('sleeping...')
                     logger.debug('Sleeping for %fs' % self.interval)
                     time.sleep(self.interval)
+
+                if not self._continue_working:
+                    logger.info('Quitting work loop...')
+
             except KeyboardInterrupt:
                 return
     
@@ -204,6 +221,28 @@ class Worker(object):
         
         for cpid in self.sandboxes.keys():
             logger.warn('Could not wait for %i' % cpid)
+
+    def master_quit(self, signum, frame):
+        # Send a SIGQUIT to all workers and wait for them to gracefully exit
+        for cpid in self.sandboxes.keys():
+            logger.warn('Quitting %i...' % cpid)
+            os.kill(cpid, signal.SIGQUIT)
+
+        while True:
+            try:
+                pid, status = os.wait()
+                #log the signal and the exit code
+                self.sandboxes.pop(pid, None)
+                logger.warn('Worker %i quitted.' % cpid)
+            except OSError:
+                break
+
+        for cpid in self.sandboxes.keys():
+            logger.warn('Could not wait for %i' % cpid)
+
+    def worker_quit(self, signum, frame):
+        logger.debug('Received SIGQUIT...')
+        self._continue_working = False
 
     # QUIT - Wait for child to finish processing then exit
     # TERM / INT - Immediately kill child then exit
