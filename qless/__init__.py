@@ -8,11 +8,20 @@ import simplejson as json
 logger = logging.getLogger('qless')
 formatter = logging.Formatter(
     '%(asctime)s | PID %(process)d | [%(levelname)s] %(message)s')
-handler = logging.StreamHandler()
-handler.setLevel(logging.DEBUG)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.FATAL)
+#Log to File
+log_filename = '/var/log/qless/qless.log'
+filehandler = logging.FileHandler(log_filename)
+filehandler.setFormatter(formatter)
+filehandler.setLevel(logging.DEBUG)
+logger.addHandler(filehandler)
+#Log rotation
+rotatehandler = logging.handlers.RotatingFileHandler(log_filename, maxBytes=104857600, backupCount=10)
+logger.addHandler(rotatehandler)
+#Log to Console
+consolehandler = logging.StreamHandler()
+consolehandler.setFormatter(formatter)
+consolehandler.setLevel(logging.DEBUG)
+logger.addHandler(consolehandler)
 
 # A decorator to specify a bunch of exceptions that should be caught
 # and the job retried. It turns out this comes up with relative frequency
