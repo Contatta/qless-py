@@ -3,6 +3,7 @@
 import time
 import redis
 import logging
+import logging.handlers
 import simplejson as json
 
 logger = logging.getLogger('qless')
