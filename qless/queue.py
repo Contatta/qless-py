@@ -79,7 +79,7 @@ class Queue(object):
         should be a JSON array of the tags associated with the instance and
         the `valid after` argument should be in how many seconds the instance
         should be considered actionable.'''
-        return self.client('put', self.name,
+        return self.client('put', self.worker_name, self.name,
             jid or uuid.uuid4().hex,
             self.class_string(klass),
             json.dumps(data),
