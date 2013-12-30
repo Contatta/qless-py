@@ -1,4 +1,4 @@
--- Current SHA: 9df835a542b4c5b4453c3c1c9f035f8e137c7a7b
+-- Current SHA: 3740e6ca8f3cc1980938cc9e2a8af51468f9502f
 -- This is a generated file
 local Qless = {
   ns = 'ql:'
@@ -425,14 +425,6 @@ function QlessJob:complete(now, worker, queue, data, ...)
     redis.call('hmget', QlessJob.ns .. self.jid, 'worker', 'state',
       'priority', 'retries', 'throttle_interval'))
 
-  interval = tonumber(interval or 0)
-  local next_run = 0
-  if interval > 0 then
-    next_run = now + interval
-  else
-    next_run = -1
-  end
-
   if lastworker == false then
     error('Complete(): Job does not exist')
   elseif (state ~= 'running') then
@@ -440,6 +432,14 @@ function QlessJob:complete(now, worker, queue, data, ...)
   elseif lastworker ~= worker then
     error('Complete(): Job has been handed out to another worker: ' ..
       tostring(lastworker))
+  end
+
+  interval = tonumber(interval)
+  local next_run = 0
+  if interval > 0 then
+    next_run = now + interval
+  else
+    next_run = -1
   end
 
   self:history(now, 'done')
@@ -2025,6 +2025,7 @@ function QlessResource:acquire(now, priority, jid)
   if remaining > 0 then
     redis.call('sadd', keyLocks, jid)
     redis.call('zrem', self:prefix('pending'), jid)
+
     return true
   end
 
@@ -2063,8 +2064,36 @@ function QlessResource:locks()
   return redis.call('scard', self:prefix('locks'))
 end
 
+function QlessResource:pending()
+  return redis.call('zcard', self:prefix('pending'))
+end
+
 function QlessResource:exists()
   return redis.call('exists', self:prefix())
+end
+
+function QlessResource.pending_counts(now)
+  local search = QlessResource.ns..'*pending'
+  local reply = redis.call('keys', search)
+  local response = {}
+  for index, rname in ipairs(reply) do
+    local count = redis.call('zcard', rname)
+    local resStat = {name = rname, count = count}
+    table.insert(response,resStat)
+  end
+  return response
+end
+
+function QlessResource.locks_counts(now)
+  local search = QlessResource.ns..'*locks'
+  local reply = redis.call('keys', search)
+  local response = {}
+  for index, rname in ipairs(reply) do
+    local count = redis.call('scard', rname)
+    local resStat = {name = rname, count = count}
+    table.insert(response,resStat)
+  end
+  return response
 end-------------------------------------------------------------------------------
 local QlessAPI = {}
 
@@ -2283,6 +2312,14 @@ end
 
 QlessAPI['resource.locks'] = function(now, rid)
   return Qless.resource(rid):locks()
+end
+
+QlessAPI['resource.stats_pending'] = function(now)
+  return cjson.encode(QlessResource.pending_counts(now))
+end
+
+QlessAPI['resource.stats_locks'] = function(now)
+  return cjson.encode(QlessResource.locks_counts(now))
 end
 
 
