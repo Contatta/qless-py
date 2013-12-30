@@ -68,7 +68,7 @@ class Queue(object):
         return klass.__module__ + '.' + klass.__name__
 
     def put(self, klass, data, priority=None, tags=None, delay=None,
-        retries=None, jid=None, depends=None):
+        retries=None, jid=None, depends=None, replace=None, resources=None, interval=None):
         '''Either create a new job in the provided queue with the provided
         attributes, or move that job into that queue. If the job is being
         serviced by a worker, subsequent attempts by that worker to either
@@ -87,7 +87,10 @@ class Queue(object):
             'priority', priority or 0,
             'tags', json.dumps(tags or []),
             'retries', retries or 5,
-            'depends', json.dumps(depends or [])
+            'depends', json.dumps(depends or []),
+            'replace', replace or 1,
+            'resources', json.dumps(resources or []),
+            'interval', interval or 0.0
         )
 
     def recur(self, klass, data, interval, offset=0, priority=None, tags=None,
