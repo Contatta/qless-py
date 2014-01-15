@@ -1,4 +1,4 @@
--- Current SHA: 3740e6ca8f3cc1980938cc9e2a8af51468f9502f
+-- Current SHA: c33124b8290d5f1f594610295453037ed64d0b0f
 -- This is a generated file
 local Qless = {
   ns = 'ql:'
@@ -434,12 +434,14 @@ function QlessJob:complete(now, worker, queue, data, ...)
       tostring(lastworker))
   end
 
-  interval = tonumber(interval)
   local next_run = 0
-  if interval > 0 then
-    next_run = now + interval
-  else
-    next_run = -1
+  if interval then
+      interval = tonumber(interval)
+    if interval > 0 then
+      next_run = now + interval
+    else
+      next_run = -1
+    end
   end
 
   self:history(now, 'done')
