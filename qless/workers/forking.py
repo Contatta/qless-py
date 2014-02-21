@@ -27,7 +27,10 @@ class ForkingWorker(Worker):
         '''Stop all the workers, and then wait for them'''
         for cpid in self.sandboxes.keys():
             logger.warn('Stopping %i...' % cpid)
-            os.kill(cpid, sig)
+            try:
+                os.kill(cpid, sig)
+            except OSError:  # pragma: no cover
+                logger.exception('Error stopping %s...' % cpid)
 
         # While we still have children running, wait for them
         for cpid in self.sandboxes.keys():
@@ -38,7 +41,7 @@ class ForkingWorker(Worker):
             except OSError:  # pragma: no cover
                 logger.exception('Error waiting for %i...' % cpid)
             finally:
-                self.sandboxes.pop(pid, None)
+                self.sandboxes.pop(cpid, None)
 
     def spawn(self, **kwargs):
         '''Return a new worker for a child process'''
@@ -94,5 +97,9 @@ class ForkingWorker(Worker):
         '''Signal handler for this process'''
         if signum in (signal.SIGTERM, signal.SIGINT, signal.SIGQUIT):
             for cpid in self.sandboxes.keys():
-                os.kill(cpid, signum)
+                try:
+                    os.kill(cpid, signum)
+                except OSError:  # pragma: no cover
+                    logger.exception(
+                        'Failed to send %s to %s...' % (signum, cpid))
             exit(0)
