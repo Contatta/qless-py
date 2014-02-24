@@ -169,16 +169,20 @@ class Worker(object):
         for sig in signals:
             signal.signal(getattr(signal, 'SIG' + sig), self.handler)
 
-    def stop(self):
+    def stop(self, sig=signal.SIGINT):
         '''Mark this for shutdown'''
         self.shutdown = True
+        if sig == signal.SIGTERM:
+            exit(0)
 
     # Unfortunately, for most of this, it's not really practical to unit test
     def handler(self, signum, frame):  # pragma: no cover
         '''Signal handler for this process'''
         if signum == signal.SIGQUIT:
             # QUIT - Finish processing, but don't do any more work after that
-            self.stop()
+            self.stop(signum)
+        elif signum == signal.SIGTERM:
+            self.stop(signum)
         elif signum == signal.SIGUSR1:
             # USR1 - Print the backtrace
             message = ''.join(traceback.format_stack(frame))
