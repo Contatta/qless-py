@@ -1,4 +1,4 @@
--- Current SHA: c33124b8290d5f1f594610295453037ed64d0b0f
+-- Current SHA: e441cd621752627f623face388eaac55b219f9bf
 -- This is a generated file
 local Qless = {
   ns = 'ql:'
@@ -357,7 +357,7 @@ function QlessJob:data(...)
   local job = redis.call(
       'hmget', QlessJob.ns .. self.jid, 'jid', 'klass', 'state', 'queue',
       'worker', 'priority', 'expires', 'retries', 'remaining', 'data',
-      'tags', 'failure', 'resources')
+      'tags', 'failure', 'resources', 'result_data')
 
   if not job[1] then
     return nil
@@ -380,6 +380,7 @@ function QlessJob:data(...)
     history      = self:history(),
     failure      = cjson.decode(job[12] or '{}'),
     resources    = cjson.decode(job[13] or '[]'),
+    result_data  = cjson.decode(job[14] or '{}'),
     dependents   = redis.call(
       'smembers', QlessJob.ns .. self.jid .. '-dependents'),
     dependencies = redis.call(
@@ -406,10 +407,11 @@ function QlessJob:complete(now, worker, queue, data, ...)
   local options = {}
   for i = 1, #arg, 2 do options[arg[i]] = arg[i + 1] end
   
-  local nextq   = options['next']
-  local delay   = assert(tonumber(options['delay'] or 0))
-  local depends = assert(cjson.decode(options['depends'] or '[]'),
-    'Complete(): Arg "depends" not JSON: ' .. tostring(options['depends']))
+  local nextq       = options['next']
+  local result_data = options['result_data']
+  local delay       = assert(tonumber(options['delay'] or 0))
+  local depends     = assert(cjson.decode(options['depends'] or '[]'),
+  'Complete(): Arg "depends" not JSON: ' .. tostring(options['depends']))
 
   if options['delay'] and nextq == nil then
     error('Complete(): "delay" cannot be used without a "next".')
@@ -448,6 +450,10 @@ function QlessJob:complete(now, worker, queue, data, ...)
 
   if data then
     redis.call('hset', QlessJob.ns .. self.jid, 'data', cjson.encode(data))
+  end
+
+  if result_data then
+    redis.call('hset', QlessJob.ns .. self.jid, 'result_data', result_data)
   end
 
   local queue_obj = Qless.queue(queue)
@@ -1436,7 +1442,8 @@ function QlessQueue:put(now, worker, jid, klass, raw_data, delay, ...)
     'remaining', retries,
     'throttle_interval', interval,
     'throttle_next_run', next_run,
-    'time'     , string.format("%.20f", now))
+    'time'     , string.format("%.20f", now),
+    'result_data', '{}')
 
   for i, j in ipairs(depends) do
     local state = redis.call('hget', QlessJob.ns .. j, 'state')
