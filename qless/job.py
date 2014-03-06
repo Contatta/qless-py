@@ -28,6 +28,7 @@ class BaseJob(object):
         # Because of how Lua parses JSON, empty tags comes through as {}
         object.__setattr__(self, 'tags', kwargs['tags'] or [])
         object.__setattr__(self, 'data', json.loads(kwargs['data']))
+        object.__setattr__(self, 'result_data', kwargs['result_data'] or {})
 
     def __setattr__(self, key, value):
         if key == 'priority':
@@ -177,7 +178,7 @@ class Job(BaseJob):
             json.dumps(self.data), delay, 'depends', json.dumps(depends or [])
         )
 
-    def complete(self, nextq=None, delay=None, depends=None):
+    def complete(self, nextq=None, delay=None, depends=None, result_data=None):
         '''Turn this job in as complete, optionally advancing it to another
         queue. Like ``Queue.put`` and ``move``, it accepts a delay, and
         dependencies'''
@@ -186,12 +187,14 @@ class Job(BaseJob):
                 self.jid, nextq, self.queue_name))
             return self.client('complete', self.jid, self.client.worker_name,
                 self.queue_name, json.dumps(self.data), 'next', nextq,
-                'delay', delay or 0, 'depends', json.dumps(depends or [])
+                'delay', delay or 0, 'depends', json.dumps(depends or []),
+                'result_data', result_data or {}
             ) or False
         else:
             logger.info('Completing %s' % self.jid)
             return self.client('complete', self.jid, self.client.worker_name,
-                self.queue_name, json.dumps(self.data)) or False
+                self.queue_name, json.dumps(self.data),
+                'result_data', result_data or {}) or False
 
     def heartbeat(self):
         '''Renew the heartbeat, if possible, and optionally update the job's
