@@ -188,13 +188,13 @@ class Job(BaseJob):
             return self.client('complete', self.jid, self.client.worker_name,
                 self.queue_name, json.dumps(self.data), 'next', nextq,
                 'delay', delay or 0, 'depends', json.dumps(depends or []),
-                'result_data', result_data or {}
+                'result_data', json.dumps(result_data or {})
             ) or False
         else:
             logger.info('Completing %s' % self.jid)
             return self.client('complete', self.jid, self.client.worker_name,
                 self.queue_name, json.dumps(self.data),
-                'result_data', result_data or {}) or False
+                'result_data', json.dumps(result_data or {})) or False
 
     def heartbeat(self):
         '''Renew the heartbeat, if possible, and optionally update the job's
