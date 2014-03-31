@@ -100,7 +100,6 @@ class ForkingWorker(Worker):
     def handler(self, signum, frame):  # pragma: no cover
         '''Signal handler for this process'''
         if signum in (signal.SIGTERM, signal.SIGINT, signal.SIGQUIT, signal.SIGHUP):
-            logger.info("In forking signal")
             for cpid in self.sandboxes.keys():
                 os.kill(cpid, signum)
             if signum == signal.SIGHUP:
