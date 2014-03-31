@@ -35,13 +35,16 @@ except ImportError:  # pragma: no cover
 class Worker(object):
     '''Worker. For doing work'''
     @classmethod
-    def title(cls, message=None):
+    def title(cls, message=None, level='INFO'):
         '''Set the title of the process'''
         if message == None:
             return getproctitle()
         else:
             setproctitle('qless-py-worker %s' % message)
-            logger.info(message)
+            if level == 'DEBUG':
+                logger.info(message)
+            elif level == 'INFO':
+                logger.info(message)
 
     @classmethod
     def divide(cls, jobs, count):

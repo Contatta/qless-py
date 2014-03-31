@@ -31,7 +31,7 @@ class SerialWorker(Worker):
                 # If there was no job to be had, we should sleep a little bit
                 if not job:
                     self.jid = None
-                    self.title('Sleeping for %fs' % self.interval)
+                    self.title('Sleeping for %fs' % self.interval, level='DEBUG')
                     time.sleep(self.interval)
                 else:
                     self.jid = job.jid

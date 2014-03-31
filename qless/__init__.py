@@ -5,12 +5,12 @@ import redis
 import pkgutil
 import logging
 import logging.handlers
+import logstash_formatter
 import decorator
 import simplejson as json
 
 # Internal imports
 from .exceptions import QlessException
-
 
 # Our logger
 logger = logging.getLogger('qless')
@@ -20,11 +20,20 @@ formatter = logging.Formatter(
 log_filename = '/var/log/qless/qless.log'
 filehandler = logging.FileHandler(log_filename)
 filehandler.setFormatter(formatter)
-filehandler.setLevel(logging.DEBUG)
+filehandler.setLevel(logging.INFO)
 logger.addHandler(filehandler)
+#logstash-readable file
+logstash_filename = '/var/log/qless/qless.json'
+logstash_handler = logging.handlers.WatchedFileHandler(logstash_filename)
+logstash_handler.setFormatter(logstash_formatter)
+logstash_handler.setLevel(logging.INFO)
+logger.addHandler(logstash_handler)
+
 #Log rotation
 rotatehandler = logging.handlers.RotatingFileHandler(log_filename, maxBytes=104857600, backupCount=10)
 logger.addHandler(rotatehandler)
+logstashrotatehandler = logging.handlers.RotatingFileHandler(logstash_filename, maxBytes=104857600, backupCount=10)
+logger.addHandler(logstashrotatehandler)
 #Log to Console
 consolehandler = logging.StreamHandler()
 consolehandler.setFormatter(formatter)
