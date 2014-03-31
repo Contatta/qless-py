@@ -4,3 +4,4 @@ qless_py.egg-info/*
 *.pyc
 htmlcov/*
 .coverage*
+.idea
