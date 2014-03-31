@@ -10,6 +10,7 @@ import itertools
 import traceback
 import threading
 from contextlib import contextmanager
+from qless import _reloadLogger
 
 # Internal imports
 from qless.listener import Listener
@@ -42,7 +43,7 @@ class Worker(object):
         else:
             setproctitle('qless-py-worker %s' % message)
             if level == 'DEBUG':
-                logger.info(message)
+                logger.debug(message)
             elif level == 'INFO':
                 logger.info(message)
 
@@ -167,7 +168,7 @@ class Worker(object):
         '''Stop processing the provided jid'''
         raise NotImplementedError('Derived classes must override "kill"')
 
-    def signals(self, signals=('QUIT', 'USR1', 'USR2')):
+    def signals(self, signals=('QUIT', 'USR1', 'USR2', 'HUP')):
         '''Register our signal handler'''
         for sig in signals:
             signal.signal(getattr(signal, 'SIG' + sig), self.handler)
@@ -198,3 +199,8 @@ class Worker(object):
             message = ''.join(traceback.format_stack(frame))
             message = 'Traceback:\n%s' % message
             code.InteractiveConsole(data).interact(message)
+        elif signum ==signal.SIGHUP:
+            # HUP - reload logging configuration
+            _reloadLogger()
+
+

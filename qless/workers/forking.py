@@ -3,10 +3,11 @@
 import os
 import psutil
 import signal
+import errno
 
 # Internal imports
 from . import Worker
-from qless import logger, util
+from qless import logger, util, _reloadLogger
 from .serial import SerialWorker
 
 
@@ -53,7 +54,7 @@ class ForkingWorker(Worker):
 
     def run(self):
         '''Run this worker'''
-        self.signals(('TERM', 'INT', 'QUIT'))
+        self.signals(('TERM', 'INT', 'QUIT', 'HUP'))
         # Divide up the jobs that we have to divy up between the workers. This
         # produces evenly-sized groups of jobs
         resume = self.divide(self.resume, self.count)
@@ -74,25 +75,36 @@ class ForkingWorker(Worker):
 
         try:
             while not self.shutdown:
-                pid, status = os.wait()
-                logger.warn('Worker %i died with status %i from signal %i' % (
-                    pid, status >> 8, status & 0xff))
-                sandbox = self.sandboxes.pop(pid)
-                cpid = os.fork()
-                if cpid:
-                    logger.info('Spawned replacement worker %i' % cpid)
-                    self.sandboxes[cpid] = sandbox
-                else:  # pragma: no cover
-                    with Worker.sandbox(sandbox):
-                        os.chdir(sandbox)
-                        self.spawn(sandbox=sandbox).run()
-                        exit(0)
+                try:
+                    pid, status = os.wait()
+                    logger.warn('Worker %i died with status %i from signal %i' % (
+                        pid, status >> 8, status & 0xff))
+                    sandbox = self.sandboxes.pop(pid)
+                    cpid = os.fork()
+                    if cpid:
+                        logger.info('Spawned replacement worker %i' % cpid)
+                        self.sandboxes[cpid] = sandbox
+                    else:  # pragma: no cover
+                        with Worker.sandbox(sandbox):
+                            os.chdir(sandbox)
+                            self.spawn(sandbox=sandbox).run()
+                            exit(0)
+                except OSError, e:
+                    if e.errno == errno.EINTR:
+                        continue
+                    else:
+                        raise
         finally:
             self.stop(signal.SIGKILL)
 
     def handler(self, signum, frame):  # pragma: no cover
         '''Signal handler for this process'''
-        if signum in (signal.SIGTERM, signal.SIGINT, signal.SIGQUIT):
+        if signum in (signal.SIGTERM, signal.SIGINT, signal.SIGQUIT, signal.SIGHUP):
+            logger.info("In forking signal")
             for cpid in self.sandboxes.keys():
                 os.kill(cpid, signum)
-            exit(0)
+            if signum == signal.SIGHUP:
+                # HUP - reload logging configuration
+                _reloadLogger()
+            else:
+                exit(0)

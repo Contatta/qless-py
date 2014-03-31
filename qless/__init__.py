@@ -13,32 +13,54 @@ import simplejson as json
 from .exceptions import QlessException
 
 # Our logger
-logger = logging.getLogger('qless')
-formatter = logging.Formatter(
-    '%(asctime)s | PID %(process)d | [%(levelname)s] %(message)s')
-#Log to File
-log_filename = '/var/log/qless/qless.log'
-filehandler = logging.FileHandler(log_filename)
-filehandler.setFormatter(formatter)
-filehandler.setLevel(logging.INFO)
-logger.addHandler(filehandler)
-#logstash-readable file
-logstash_filename = '/var/log/qless/qless.json'
-logstash_handler = logging.handlers.WatchedFileHandler(logstash_filename)
-logstash_handler.setFormatter(logstash_formatter)
-logstash_handler.setLevel(logging.INFO)
-logger.addHandler(logstash_handler)
+def _getLogger():
+    global logstash_formatter
+    _logger=logging.getLogger('qless')
+    if not len(_logger.handlers):
+        logger = logging.getLogger('qless')
+        formatter = logging.Formatter(
+             '%(asctime)s | PID %(process)d | [%(levelname)s] %(message)s')
+        #Log to File
+        log_filename = '/var/log/qless/qless.log'
+        filehandler = logging.FileHandler(log_filename)
+        filehandler.setFormatter(formatter)
+        filehandler.setLevel(logging.INFO)
+        logger.addHandler(filehandler)
 
-#Log rotation
-rotatehandler = logging.handlers.RotatingFileHandler(log_filename, maxBytes=104857600, backupCount=10)
-logger.addHandler(rotatehandler)
-logstashrotatehandler = logging.handlers.RotatingFileHandler(logstash_filename, maxBytes=104857600, backupCount=10)
-logger.addHandler(logstashrotatehandler)
-#Log to Console
-consolehandler = logging.StreamHandler()
-consolehandler.setFormatter(formatter)
-consolehandler.setLevel(logging.DEBUG)
-logger.addHandler(consolehandler)
+        #logstash-readable file
+        logstash_filename = '/var/log/qless/qless.json'
+        logstash_formatter = logstash_formatter.LogstashFormatter()
+        logstash_handler = logging.handlers.WatchedFileHandler(logstash_filename)
+        logstash_handler.setFormatter(logstash_formatter)
+        logstash_handler.setLevel(logging.INFO)
+        logger.addHandler(logstash_handler)
+
+        #Log rotation
+        # Log rotation adds the message into the log file redundantly (#BUG)
+        # rotatehandler = logging.handlers.RotatingFileHandler(log_filename, maxBytes=104857600, backupCount=10)
+        # logger.addHandler(rotatehandler)
+        # logstashrotatehandler = logging.handlers.RotatingFileHandler(logstash_filename, maxBytes=104857600, backupCount=10)
+        # logger.addHandler(logstashrotatehandler)
+
+        #Log to Console
+        consolehandler = logging.StreamHandler()
+        consolehandler.setFormatter(formatter)
+        consolehandler.setLevel(logging.DEBUG)
+        logger.addHandler(consolehandler)
+
+    return _logger
+
+#Global Logger
+logger = _getLogger()
+
+def _reloadLogger():
+    global logger
+    logger.info('Reloading logger configuration...')
+    while len(logger.handlers) > 0:
+        h = logger.handlers[0]
+        logger.removeHandler(h)
+    logger = _getLogger()
+    logger.info('Reloaded logger configuration...')
 
 
 def retry(*excepts):
