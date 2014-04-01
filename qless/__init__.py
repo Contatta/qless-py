@@ -59,7 +59,7 @@ def _reloadLogger():
     while len(logger.handlers) > 0:
         h = logger.handlers[0]
         logger.removeHandler(h)
-    _setLogger()
+    logger = _getLogger()
     logger.info('Reloaded logger configuration...')
 
 
