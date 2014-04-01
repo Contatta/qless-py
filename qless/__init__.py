@@ -14,18 +14,18 @@ from .exceptions import QlessException
 
 # Our logger
 def _getLogger():
+    ''' Set the global logger '''
     global logstash_formatter
     _logger=logging.getLogger('qless')
     if not len(_logger.handlers):
-        logger = logging.getLogger('qless')
         formatter = logging.Formatter(
              '%(asctime)s | PID %(process)d | [%(levelname)s] %(message)s')
         #Log to File
         log_filename = '/var/log/qless/qless.log'
-        filehandler = logging.FileHandler(log_filename)
+        filehandler = logging.handlers.WatchedFileHandler(log_filename)
         filehandler.setFormatter(formatter)
         filehandler.setLevel(logging.INFO)
-        logger.addHandler(filehandler)
+        _logger.addHandler(filehandler)
 
         #logstash-readable file
         logstash_filename = '/var/log/qless/qless.json'
@@ -33,7 +33,7 @@ def _getLogger():
         logstash_handler = logging.handlers.WatchedFileHandler(logstash_filename)
         logstash_handler.setFormatter(stash_formatter)
         logstash_handler.setLevel(logging.INFO)
-        logger.addHandler(logstash_handler)
+        _logger.addHandler(logstash_handler)
 
         #Log rotation
         # Log rotation adds the message into the log file redundantly (#BUG)
@@ -46,11 +46,11 @@ def _getLogger():
         consolehandler = logging.StreamHandler()
         consolehandler.setFormatter(formatter)
         consolehandler.setLevel(logging.DEBUG)
-        logger.addHandler(consolehandler)
+        _logger.addHandler(consolehandler)
 
     return _logger
 
-#Global Logger
+#Set out GLOBAL logger
 logger = _getLogger()
 
 def _reloadLogger():
@@ -59,7 +59,7 @@ def _reloadLogger():
     while len(logger.handlers) > 0:
         h = logger.handlers[0]
         logger.removeHandler(h)
-    logger = _getLogger()
+    _setLogger()
     logger.info('Reloaded logger configuration...')
 
 
