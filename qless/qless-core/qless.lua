@@ -1,4 +1,4 @@
--- Current SHA: e441cd621752627f623face388eaac55b219f9bf
+-- Current SHA: 5020ce029c643c147ff4313a7d93c3a66ed250bf
 -- This is a generated file
 local Qless = {
   ns = 'ql:'
@@ -997,11 +997,72 @@ function QlessJob:acquire_resources(now)
   end
 
   local acquired_all = true
+
   for _, res in ipairs(resources) do
-    local acquire_ret = Qless.resource(res):acquire(now, priority, self.jid)
-    acquired_all = acquired_all and acquire_ret
+    local ok, res = pcall(function() return Qless.resource(res):acquire(now, priority, self.jid) end)
+    if not ok then
+      self:set_failed(now, 'system:fatal', res.msg)
+      return false
+    end
+    acquired_all = acquired_all and res
   end
   return acquired_all
+end
+
+function QlessJob:set_failed(now, group, message, worker, release_work, release_resources)
+  local group             = assert(group, 'Fail(): Arg "group" missing')
+  local message           = assert(message, 'Fail(): Arg "message" missing')
+  local worker            = worker or 'none'
+  local release_work      = release_work or true
+  local release_resources = release_resources or false
+
+  local bin = now - (now % 86400)
+
+  local queue = unpack(redis.call('hmget', QlessJob.ns .. self.jid, 'queue'))
+
+  Qless.publish('log', cjson.encode({
+    jid     = self.jid,
+    event   = 'failed',
+    worker  = worker,
+    group   = group,
+    message = message
+  }))
+
+  if redis.call('zscore', 'ql:tracked', self.jid) ~= false then
+    Qless.publish('failed', self.jid)
+  end
+
+  self:history(now, 'failed', {group = group})
+
+  redis.call('hincrby', 'ql:s:stats:' .. bin .. ':' .. queue, 'failures', 1)
+  redis.call('hincrby', 'ql:s:stats:' .. bin .. ':' .. queue, 'failed'  , 1)
+
+  if release_work then
+    local queue_obj = Qless.queue(queue)
+    queue_obj.work.remove(self.jid)
+    queue_obj.locks.remove(self.jid)
+    queue_obj.scheduled.remove(self.jid)
+  end
+
+  if release_resources then
+    self:release_resources(now)
+  end
+
+  redis.call('hmset', QlessJob.ns .. self.jid,
+    'state', 'failed',
+    'worker', '',
+    'expires', '',
+    'failure', cjson.encode({
+      ['group']   = group,
+      ['message'] = message,
+      ['when']    = math.floor(now)
+    }))
+
+  redis.call('sadd', 'ql:failures', group)
+  redis.call('lpush', 'ql:f:' .. group, self.jid)
+
+
+  return self.jid
 end
 function Qless.queue(name)
   assert(name, 'Queue(): no queue name provided')
@@ -1350,6 +1411,7 @@ function QlessQueue:put(now, worker, jid, klass, raw_data, delay, ...)
 
   local resources = assert(cjson.decode(options['resources'] or '[]'),
     'Put(): Arg "resources" not JSON array: '     .. tostring(options['resources']))
+  assert(#resources == 0 or QlessResource.all_exist(resources), 'Put(): invalid resources requested')
 
   local interval = assert(tonumber(options['interval'] or interval or 0),
     'Put(): Arg "interval" not a number: ' .. tostring(options['interval']))
@@ -2022,8 +2084,14 @@ end
 function QlessResource:acquire(now, priority, jid)
   local keyLocks = self:prefix('locks')
   local data = self:data()
-  assert(data, 'Acquire(): resource ' .. self.rid .. ' does not exist')
-  assert(type(jid) ~= 'table', 'Acquire(): invalid jid')
+  if type(data) ~= 'table' then
+    error({code=1, msg='Acquire(): resource ' .. self.rid .. ' does not exist'})
+  end
+
+  if type(jid) ~= 'string' then
+    error({code=2, msg='Acquire(): invalid jid; expected string, got \'' .. type(jid) .. '\''})
+  end
+
 
   if redis.call('sismember', self:prefix('locks'), jid) == 1 then
     return true
@@ -2078,7 +2146,16 @@ function QlessResource:pending()
 end
 
 function QlessResource:exists()
-  return redis.call('exists', self:prefix())
+  return redis.call('exists', self:prefix()) == 1
+end
+
+function QlessResource.all_exist(resources)
+  for _, res in ipairs(resources) do
+    if redis.call('exists', QlessResource.ns .. res) == 0 then
+      return false
+    end
+  end
+  return true
 end
 
 function QlessResource.pending_counts(now)
