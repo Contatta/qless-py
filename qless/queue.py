@@ -94,7 +94,7 @@ class Queue(object):
         )
 
     def recur(self, klass, data, interval, offset=0, priority=None, tags=None,
-        retries=None, jid=None):
+        retries=None, resources=None, jid=None,):
         '''Place a recurring job in this queue'''
         return self.client('recur', self.name,
             jid or uuid.uuid4().hex,
@@ -103,7 +103,8 @@ class Queue(object):
             'interval', interval, offset,
             'priority', priority or 0,
             'tags', json.dumps(tags or []),
-            'retries', retries or 5
+            'retries', retries or 5,
+            'resources', json.dumps(resources or [])
         )
 
     def pop(self, count=None):
