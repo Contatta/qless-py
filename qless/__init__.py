@@ -29,7 +29,7 @@ def _getLogger():
 
         #logstash-readable file
         logstash_filename = '/var/log/qless/qless.json'
-        stash_formatter = logstash_formatter.LogstashFormatter()
+        stash_formatter = logstash_formatter.LogstashFormatterV1()
         logstash_handler = logging.handlers.WatchedFileHandler(logstash_filename)
         logstash_handler.setFormatter(stash_formatter)
         logstash_handler.setLevel(logging.INFO)
